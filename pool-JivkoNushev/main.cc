@@ -3,6 +3,20 @@
 
 using namespace std;
 
+class Exception
+{
+    string message;
+
+public:
+    Exception(): message("Empty exception") {}
+    Exception(const char* message): message(message) {}
+
+    void print() const
+    {
+        cout << message << "\n";
+    }
+};
+
 class Point
 {
 
@@ -41,6 +55,7 @@ public:
 
 class Hit : public Vector2D
 {
+    //FIXME:
     float force = 1;
 
 public:
@@ -50,7 +65,7 @@ public:
     {
         if(force < 1 || 10 < force)
         {
-            throw "Invalid force value";
+            throw Exception("Invalid force value");
         }
     }
 
@@ -121,7 +136,7 @@ public:
         // 1/2        
         if(width * 2 != height && height * 2 != width)
         {
-            throw "Invalid board coordinates";
+            throw Exception("Invalid board coordinates");
         }
     } 
 
@@ -130,7 +145,7 @@ public:
         // 1/2  
         if(width * 2 != height && height * 2 != width)
         {
-            throw "Invalid board coordinates";
+            throw Exception("Invalid board coordinates");
         }  
     } 
 };
@@ -147,7 +162,7 @@ public:
         // FIXME: ball is thicker
         if(!contains(ball.getPosition()))
         {
-            throw "Invalid ball position";
+            throw Exception("Invalid ball position");
         }
     }
     Board(Point p1, float width, float height, Ball ball) : EmptyBoard(p1, width, height), ball(ball)
@@ -155,7 +170,7 @@ public:
         // FIXME: ball is thicker
         if(!contains(ball.getPosition()))
         {
-            throw "Invalid ball position";
+            throw Exception("Invalid ball position");
         }
     }
 
@@ -203,7 +218,7 @@ void initBoard(Board& board)
         board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), ball);
         break;
     default:
-        throw "Invalid command";
+        throw Exception("Invalid command");
     }
 }
 
@@ -218,6 +233,9 @@ void printMainMenu()
     cout << "1. Initialize\n2. Change\n3. Info\n4. Hit\n5. Commands\n6. Exit\n";
 }
 
+
+// sled kato izleze gledash simetralnoto
+// za po-golqmi topcheta namalqsh poleto s radiusa che da e tochka
 int main(int argc, char const *argv[])
 {
     bool running = true;
@@ -226,7 +244,9 @@ int main(int argc, char const *argv[])
     try
     {
         Board board;
-    
+        Hit hit;   
+        char c; 
+
         while(running)
         {
             printMainMenu();
@@ -241,12 +261,13 @@ int main(int argc, char const *argv[])
                 /* code */
                 break;
             case 3:
+                system("clear");
                 cout << board;
+
+                cin.get(c);
                 break;
             case 4:
-                Hit hit;
                 initHit(hit);
-                board.getBall().hit(hit);
                 break;
             case 5:
                 /* code */
@@ -256,13 +277,13 @@ int main(int argc, char const *argv[])
                 break;
             
             default:
-                throw "Invalid command";
+                throw Exception("Invalid command");
             }
         }
     }
-    catch(const std::exception& e)
+    catch(const Exception& e)
     {
-        std::cerr << e.what() << '\n';
+        e.print();
     }
 
     return 0;
