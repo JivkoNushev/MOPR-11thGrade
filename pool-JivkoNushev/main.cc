@@ -44,8 +44,32 @@ public:
     Line(Point p1, Point p2): p1(p1), p2(p2){}
     Line(const Line& line): p1(line.p1), p2(line.p2){}
 
-};
+    static bool intersect(Point line_p1, Point line_p2, Point segment_p1, Point segment_p2, float &x, float &y) 
+    {
+        // Find the determinant of the system
+        
+        float a1 = line_p2.y - line_p1.y;
+        float b1 = line_p1.x - line_p2.x;
+        float c1 = line_p2.x * line_p1.y - line_p1.x * line_p2.y;
 
+        float a2 = segment_p2.y - segment_p1.y;
+        float b2 = segment_p1.x - segment_p2.x;
+        float c2 = segment_p2.x * segment_p1.y - segment_p1.x * segment_p2.y;
+
+        float det = a1 * b2 - a2 * b1;
+
+        // If the determinant is 0, the lines are parallel
+        if (fabs(det) < 1e-6)
+            return false;
+
+        // Otherwise, find the intersection point
+        x = (b2 * c1 - b1 * c2) / det;
+        y = (a1 * c2 - a2 * c1) / det;
+
+        return true;
+    }
+
+};
 class Vector2D
 {
 
@@ -61,20 +85,6 @@ public:
         float b = p2.y - p1.y;
 
         return sqrt(a*a + b*b);
-    }
-
-    static Point IntersectionPoint(Point line_p1, Point line_p2, Point segment_p1, Point segment_p2) 
-    {
-        // Calculate the coefficients of the line equation.
-        float a = line_p2.y - line_p1.y;
-        float b = line_p1.x - line_p2.x;
-        float c = line_p2.x * line_p1.y - line_p1.x * line_p2.y;
-
-        // Calculate the intersection point.
-        Point intersection_p;
-        intersection_p.x = (b * (segment_p1.y - segment_p2.y) - a * (segment_p1.x - segment_p2.x)) / (2 * a * (segment_p1.y - segment_p2.y) - 2 * b * (segment_p1.x - segment_p2.x));
-        intersection_p.y = (a * (segment_p1.x - segment_p2.x) - b * (segment_p1.y - segment_p2.y)) / (2 * a * (segment_p1.x - segment_p2.x) - 2 * b * (segment_p1.y - segment_p2.y));
-        return intersection_p;
     }
 
 };
@@ -239,13 +249,22 @@ public:
         // TODO: check corners
         Line lines[4] = {Line(points[0], points[1]), Line(points[0], points[4]), Line(points[1], points[3]), Line(points[4], points[3])}; 
         Line l;
+
+        Point intersection;
         while(!r.contains(p))
         {
 
             // try to find intersecton with all sides and 
             //if(lines[0].p1.x < p.x && p.x < lines[0].p2.x && p.y <= lines)
-            Point intersection = Vector2D::IntersectionPoint();
+            float x = 0, y = 0;
 
+            for(int i = 0; i < 4; i++)
+            {
+                if(Line::intersect(p, last_p, lines[i].p1, lines[i].p2, x, y))
+                {
+                    intersection = Point(x, y);
+                }
+            }
             // TODO: check corners
 
             Point p(new_x, new_y);
