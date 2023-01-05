@@ -39,10 +39,20 @@ class Line
 {
 public:
     Point p1, p2;
+    float m, b;
 
     Line(){}
-    Line(Point p1, Point p2): p1(p1), p2(p2){}
+    Line(Point p1, Point p2): p1(p1), p2(p2), m((p2.y - p1.y) / (p2.x - p1.x)), b(p1.y - m * p1.x){}
     Line(const Line& line): p1(line.p1), p2(line.p2){}
+
+    static Line findSymmetricalLine(Line line, Line through) 
+    {
+        // the slope of the symmetrical line is the negative reciprocal of the original line
+        double m = -1 / line.m;
+        // the y-intercept of the symmetrical line is the y-intercept of the original line plus the distance between the two lines
+        double b = line.b + (std::abs(line.m - through.m) * std::sqrt(1 + line.m * line.m)) / 2;
+        return Line(Point(0, b), Point(1, m + b));
+    }
 
     static bool intersect(Point line_p1, Point line_p2, Point segment_p1, Point segment_p2, float &x, float &y) 
     {
@@ -67,6 +77,11 @@ public:
         y = (a1 * c2 - a2 * c1) / det;
 
         return true;
+    }
+
+    bool containsPoint(Point p) 
+    {
+        return p.y == m * p.x + b;
     }
 
 };
@@ -121,6 +136,11 @@ public:
         return position;
     }
 
+    Point getStartingPosition() const
+    {
+        return startingPosition;
+    }
+
     void setPosition(Point position)
     {
         this->position = position;
@@ -151,11 +171,10 @@ ostream& operator<<(ostream& os, const Ball& b)
 class Rectangle
 {
 
-protected:
+public:
     //долу вляво, долу вдясно, горе вдясно, горе вляво
     Point points[4];
 
-public:
     Rectangle() {}
     Rectangle(Point p1, Point p2, Point p3, Point p4): points{p1,p2,p3,p4} {}
     Rectangle(Point p1, float width, float height):
@@ -181,6 +200,8 @@ public:
 
         return sqrt(a * a + b * b);     
     }
+
+    
 };
 
 class EmptyBoard : public Rectangle
@@ -237,6 +258,11 @@ public:
         return ball;
     }
 
+    void restart()
+    {
+        ball.setPosition(ball.getStartingPosition());
+    }
+
     void hit(Hit& h)
     {
         float new_x = ball.getPosition().x + h.force * (h.p2.x - h.p1.x);
@@ -245,10 +271,19 @@ public:
         Point p(new_x, new_y);
         Point last_p(h.p2);
         Rectangle r(points[0], getWidth() - ball.getDiameter(), getHeight() - ball.getDiameter());
+        Line l(last_p, p);
+        
+        for(int i = 0; i < 4; i++)
+        {
+            if(l.containsPoint(r.points[i]))
+            {
+                restart();
+                return;
+            }
+        }
 
-        // TODO: check corners
         Line lines[4] = {Line(points[0], points[1]), Line(points[0], points[4]), Line(points[1], points[3]), Line(points[4], points[3])}; 
-        Line l;
+        
 
         Point intersection;
         while(!r.contains(p))
@@ -263,16 +298,23 @@ public:
                 if(Line::intersect(p, last_p, lines[i].p1, lines[i].p2, x, y))
                 {
                     intersection = Point(x, y);
+                    l = Line::findSymmetricalLine(Line(intersection, p), lines[i]);
                 }
             }
-            // TODO: check corners
-
-            Point p(new_x, new_y);
-            Point last_p(Point(new_x, new_y));
+            for(int i = 0; i < 4; i++)
+            {
+                if(l.containsPoint(r.points[i]))
+                {
+                    restart();
+                    return;
+                }
+            }
+            Point last_p(intersection);
+            p = (l.p2);
         }
 
 
-        ball.setPosition(Point(new_x, new_y));
+        ball.setPosition(p);
     }
 
     friend ostream& operator <<(ostream& os, const Board& b);
@@ -318,6 +360,61 @@ void initBoard(Board& board)
     }
 }
 
+void changeBall(Board& board)
+{
+    system("clear");
+    cout << "Enter ball position and diameter\n";
+    float x, y, diameter;
+    cin >> x >> y >> diameter;
+    Ball ball(Point(x,y), diameter);
+
+    board.setBall(ball);
+}
+
+void changeBoard(Board& board)
+{
+    system("clear");
+    int commandNumber = 0;
+    cout << "1. Simple\n2. Complex\n";
+    cin >> commandNumber;
+
+    switch (commandNumber)
+    {
+    case 1:
+        float x, y, width, height;
+        cin >> x >> y >> width >> height;
+        board = Board(Point(x, y), width, height, board.getBall());
+        break;
+    case 2:
+        float x1, y1, x2, y2, x3, y3, x4, y4;
+        cin >> x1 >> y1 >> x2 >> y2 >> x3 >> y3 >> x4 >> y4;
+        board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), board.getBall());
+        break;
+    default:
+        throw Exception("Invalid command");
+    }
+}
+
+void change(Board &board)
+{
+    system("clear");
+    cout << "1. Board\n2. Ball\n";
+    int command = 0;
+    cin >> command;
+
+    switch(command)
+    {
+        case 1:
+            changeBoard(board);
+            break;
+        case 2:
+            changeBall(board);
+            break;
+        default:
+            throw Exception("Wrong command");
+    }
+}
+
 void initHit(Board& board)
 {
     float x, y, size;
@@ -338,7 +435,7 @@ void printInfo(Board& board)
 void printMainMenu()
 {
     system("clear");
-    cout << "1. Initialize\n2. Change\n3. Info\n4. Hit\n5. Commands\n6. Exit\n";
+    cout << "1. Initialize\n2. Change\n3. Info\n4. Hit\n5. Exit\n";
 }
 
 
@@ -364,7 +461,7 @@ int main(int argc, char const *argv[])
                 initBoard(board);
                 break;
             case 2:
-                /* code */
+                change(board);
                 break;
             case 3:
                 printInfo(board);
@@ -373,9 +470,6 @@ int main(int argc, char const *argv[])
                 initHit(board);
                 break;
             case 5:
-                /* code */
-                break;
-            case 6:
                 running = false;
                 break;
             
