@@ -39,25 +39,30 @@ class Line
 {
 public:
     Point p1, p2;
-    float m, b;
 
     Line(){}
-    Line(Point p1, Point p2): p1(p1), p2(p2), m((p2.y - p1.y) / (p2.x - p1.x)), b(p1.y - m * p1.x){}
-    Line(const Line& line): p1(line.p1), p2(line.p2){}
+    Line(Point p1, Point p2): p1(p1), p2(p2) {}
+    Line(const Line& line): p1(line.p1), p2(line.p2) {}
 
+
+    // взима симетричната отсечка на удадра от стената
     static Line findSymmetricalLine(Line line, Line through) 
     {
-        // the slope of the symmetrical line is the negative reciprocal of the original line
-        double m = -1 / line.m;
-        // the y-intercept of the symmetrical line is the y-intercept of the original line plus the distance between the two lines
-        double b = line.b + (std::abs(line.m - through.m) * std::sqrt(1 + line.m * line.m)) / 2;
-        return Line(Point(0, b), Point(1, m + b));
+        float a = through.p2.y - through.p1.y;
+        float b = through.p1.x - through.p2.x;
+        float c = a * through.p1.x + b * through.p1.y;
+
+        Point symmetrical((b * b * line.p2.x - a * a * line.p2.x - 2 * a * b * line.p2.y - 2 * a * c) / (a * a + b * b), 
+        (a * a * line.p2.y - b * b * line.p2.y - 2 * a * b * line.p2.x - 2 * b * c) / (a * a + b * b));
+
+        Line bounce(line.p1, symmetrical);
+
+        return bounce;
     }
 
+    // взима точката, където се докосват две прави, ако се докосват 
     static bool intersect(Point line_p1, Point line_p2, Point segment_p1, Point segment_p2, float &x, float &y) 
     {
-        // Find the determinant of the system
-        
         float a1 = line_p2.y - line_p1.y;
         float b1 = line_p1.x - line_p2.x;
         float c1 = line_p2.x * line_p1.y - line_p1.x * line_p2.y;
@@ -68,57 +73,48 @@ public:
 
         float det = a1 * b2 - a2 * b1;
 
-        // If the determinant is 0, the lines are parallel
         if (fabs(det) < 1e-6)
             return false;
 
-        // Otherwise, find the intersection point
         x = (b2 * c1 - b1 * c2) / det;
         y = (a1 * c2 - a2 * c1) / det;
 
         return true;
     }
 
+    // връща дали една права съдържа точка
     bool containsPoint(Point p) 
     {
+        float m = (p2.y - p1.y) / (p2.x - p1.x);
+        float b = p1.y - m * p1.x;
+
         return p.y == m * p.x + b;
     }
 
-};
-class Vector2D
-{
-
-public:
-    Point p1, p2;
-
-    Vector2D(){}
-    Vector2D(Point p1, Point p2): p1(p1), p2(p2){}
-
+    // взима големината на отсечката
     float getLength()
     {
         float a = p2.x - p1.x;
         float b = p2.y - p1.y;
-
         return sqrt(a*a + b*b);
     }
 
 };
 
-class Hit : public Vector2D
+class Hit : public Line
 {
 public:
     float force = 1;
 
     Hit() {}
-    Hit(Point p1, Point p2): Vector2D(p1, p2) {}
-    Hit(Point p1, Point p2, float force): Vector2D(p1, p2), force(force)
+    Hit(Point p1, Point p2): Line(p1, p2) {}
+    Hit(Point p1, Point p2, float force): Line(p1, p2), force(force)
     {
         if(force < 1 || 10 < force)
         {
             throw Exception("Invalid force value");
         }
     }
-
 };
 
 class Ball
@@ -200,8 +196,6 @@ public:
 
         return sqrt(a * a + b * b);     
     }
-
-    
 };
 
 class EmptyBoard : public Rectangle
@@ -211,8 +205,8 @@ public:
     EmptyBoard() {}
     EmptyBoard(Point p1, Point p2, Point p3, Point p4): Rectangle(p1,p2,p3,p4)
     {
-        float width = Vector2D(p1, p2).getLength();
-        float height = Vector2D(p1, p4).getLength();
+        float width = Line(p1, p2).getLength();
+        float height = Line(p1, p4).getLength();
 
         if(width * 2 != height && height * 2 != width)
         {
@@ -253,6 +247,11 @@ public:
         }
     }
 
+    void setBall(Ball ball)
+    {
+        this->ball = ball;
+    }
+
     Ball& getBall()
     {
         return ball;
@@ -272,7 +271,6 @@ public:
         Point last_p(h.p2);
         Rectangle r(points[0], getWidth() - ball.getDiameter(), getHeight() - ball.getDiameter());
         Line l(last_p, p);
-        
         for(int i = 0; i < 4; i++)
         {
             if(l.containsPoint(r.points[i]))
@@ -281,24 +279,23 @@ public:
                 return;
             }
         }
-
-        Line lines[4] = {Line(points[0], points[1]), Line(points[0], points[4]), Line(points[1], points[3]), Line(points[4], points[3])}; 
-        
+        Line lines[4] = {Line(r.points[0], r.points[1]), Line(r.points[0], r.points[4]), Line(r.points[1], r.points[3]), Line(r.points[4], r.points[3])}; 
 
         Point intersection;
         while(!r.contains(p))
         {
-
             // try to find intersecton with all sides and 
-            //if(lines[0].p1.x < p.x && p.x < lines[0].p2.x && p.y <= lines)
             float x = 0, y = 0;
 
             for(int i = 0; i < 4; i++)
             {
-                if(Line::intersect(p, last_p, lines[i].p1, lines[i].p2, x, y))
+                if(Line::intersect(last_p, p, lines[i].p1, lines[i].p2, x, y))
                 {
-                    intersection = Point(x, y);
+                    intersection = Point(-x, -y);
+                    cout << intersection << endl;
+
                     l = Line::findSymmetricalLine(Line(intersection, p), lines[i]);
+                    break;
                 }
             }
             for(int i = 0; i < 4; i++)
@@ -311,9 +308,8 @@ public:
             }
             Point last_p(intersection);
             p = (l.p2);
+            cout << "\t\t\t\t" << p << endl;
         }
-
-
         ball.setPosition(p);
     }
 
@@ -334,93 +330,139 @@ ostream& operator<<(ostream& os, const Board& b)
 void initBoard(Board& board)
 {
     system("clear");
-    cout << "Enter ball position and diameter\n";
-    float x, y, diameter;
-    cin >> x >> y >> diameter;
-    Ball ball(Point(x,y), diameter);
-
-    int commandNumber = 0;
-    cout << "1. Simple\n2. Complex\n";
-    cin >> commandNumber;
-
-    switch (commandNumber)
+    while(true)
     {
-    case 1:
-        float x, y, width, height;
-        cin >> x >> y >> width >> height;
-        board = Board(Point(x, y), width, height, ball);
-        break;
-    case 2:
-        float x1, y1, x2, y2, x3, y3, x4, y4;
-        cin >> x1 >> y1 >> x2 >> y2 >> x3 >> y3 >> x4 >> y4;
-        board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), ball);
-        break;
-    default:
-        throw Exception("Invalid command");
+        try
+        {
+            cout << "Enter ball position and diameter\n";
+            float x, y, diameter;
+            cin >> x >> y >> diameter;
+            Ball ball(Point(x,y), diameter);
+
+            int commandNumber = 0;
+            cout << "1. Simple\n2. Complex\n";
+            cin >> commandNumber;
+
+            switch (commandNumber)
+            {
+            case 1:
+                float x, y, width, height;
+                cin >> x >> y >> width >> height;
+                board = Board(Point(x, y), width, height, ball);
+                return;
+            case 2:
+                float x1, y1, x2, y2, x3, y3, x4, y4;
+                cin >> x1 >> y1 >> x2 >> y2 >> x3 >> y3 >> x4 >> y4;
+                board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), ball);
+                return;
+            default:
+                cout << "Invalid command\n";
+            }
+        }
+        catch(Exception e)
+        {
+            e.print();
+        }
     }
 }
 
 void changeBall(Board& board)
 {
     system("clear");
-    cout << "Enter ball position and diameter\n";
-    float x, y, diameter;
-    cin >> x >> y >> diameter;
-    Ball ball(Point(x,y), diameter);
+    while(true)
+    {
+        try
+        {
+            cout << "Enter ball position and diameter\n";
+            float x, y, diameter;
+            cin >> x >> y >> diameter;
+            Ball ball(Point(x,y), diameter);
 
-    board.setBall(ball);
+            board.setBall(ball);
+            return;
+        }
+        catch(Exception e)
+        {
+            e.print();
+        }
+    }
 }
 
 void changeBoard(Board& board)
 {
     system("clear");
     int commandNumber = 0;
-    cout << "1. Simple\n2. Complex\n";
-    cin >> commandNumber;
-
-    switch (commandNumber)
+    while(true)
     {
-    case 1:
-        float x, y, width, height;
-        cin >> x >> y >> width >> height;
-        board = Board(Point(x, y), width, height, board.getBall());
-        break;
-    case 2:
-        float x1, y1, x2, y2, x3, y3, x4, y4;
-        cin >> x1 >> y1 >> x2 >> y2 >> x3 >> y3 >> x4 >> y4;
-        board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), board.getBall());
-        break;
-    default:
-        throw Exception("Invalid command");
+        cout << "1. Simple\n2. Complex\n";
+        cin >> commandNumber;
+
+        try
+        {
+            switch (commandNumber)
+            {
+            case 1:
+                float x, y, width, height;
+                cin >> x >> y >> width >> height;
+                board = Board(Point(x, y), width, height, board.getBall());
+                return;
+            case 2:
+                float x1, y1, x2, y2, x3, y3, x4, y4;
+                cin >> x1 >> y1 >> x2 >> y2 >> x3 >> y3 >> x4 >> y4;
+                board = Board(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), board.getBall());
+                return;
+            default:
+                cout << "invalid command\n";
+            }
+        }
+        catch(Exception e)
+        {
+            e.print();
+        }
     }
+    
 }
 
 void change(Board &board)
 {
     system("clear");
-    cout << "1. Board\n2. Ball\n";
-    int command = 0;
-    cin >> command;
-
-    switch(command)
+    while(true)
     {
-        case 1:
-            changeBoard(board);
-            break;
-        case 2:
-            changeBall(board);
-            break;
-        default:
-            throw Exception("Wrong command");
+        cout << "1. Board\n2. Ball\n";
+        int command = 0;
+        cin >> command;
+
+        switch(command)
+        {
+            case 1:
+                changeBoard(board);
+                return;
+            case 2:
+                changeBall(board);
+                return;
+            default:
+                cout << "Wrong command\n";
+        }
     }
 }
 
 void initHit(Board& board)
 {
-    float x, y, size;
-    cin >> x >> y >> size;
-    Hit h(board.getBall().getPosition(), Point(x, y), size);
-    board.hit(h);
+    while (true)
+    {
+        try
+        {
+            float x, y, size;
+            cin >> x >> y >> size;
+            Hit h(board.getBall().getPosition(), Point(x, y), size);
+            board.hit(h);
+            return;
+        }
+        catch(Exception e)
+        {
+            e.print();
+        }
+    }
 }
 
 void printInfo(Board& board)
@@ -437,7 +479,6 @@ void printMainMenu()
     system("clear");
     cout << "1. Initialize\n2. Change\n3. Info\n4. Hit\n5. Exit\n";
 }
-
 
 // sled kato izleze gledash simetralnoto
 // za po-golqmi topcheta namalqsh poleto s radiusa che da e tochka
