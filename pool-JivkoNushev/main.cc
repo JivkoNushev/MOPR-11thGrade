@@ -48,13 +48,16 @@ public:
     // взима симетричната отсечка на удадра от стената
     static Line findSymmetricalLine(Line line, Line through) 
     {
+        // изразяваме правата чрез A, B, C 
         float a = through.p2.y - through.p1.y;
         float b = through.p1.x - through.p2.x;
         float c = a * through.p1.x + b * through.p1.y;
 
+        // намираме симетричната точка на крайната точка на удара спрямо стената на масата
         Point symmetrical((b * b * line.p2.x - a * a * line.p2.x - 2 * a * b * line.p2.y - 2 * a * c) / (a * a + b * b), 
         (a * a * line.p2.y - b * b * line.p2.y - 2 * a * b * line.p2.x - 2 * b * c) / (a * a + b * b));
 
+        // създаваме отсечка с начало точката на докосване и край симетричната точка
         Line bounce(line.p1, symmetrical);
 
         return bounce;
@@ -63,6 +66,7 @@ public:
     // взима точката, където се докосват две прави, ако се докосват 
     static bool intersect(Point line_p1, Point line_p2, Point segment_p1, Point segment_p2, float &x, float &y) 
     {
+        // изразяваме правите чрез A, B, C 
         float a1 = line_p2.y - line_p1.y;
         float b1 = line_p1.x - line_p2.x;
         float c1 = line_p2.x * line_p1.y - line_p1.x * line_p2.y;
@@ -71,11 +75,14 @@ public:
         float b2 = segment_p1.x - segment_p2.x;
         float c2 = segment_p2.x * segment_p1.y - segment_p1.x * segment_p2.y;
 
+        // изчисляваме детерминанта
         float det = a1 * b2 - a2 * b1;
 
-        if (fabs(det) < 1e-6)
+        // ако детерминантата е 0 значи са успоредни
+        if(0 == det)
             return false;
 
+        // намираме къде се пресичат
         x = (b2 * c1 - b1 * c2) / det;
         y = (a1 * c2 - a2 * c1) / det;
 
@@ -125,7 +132,7 @@ class Ball
 
 public:
     Ball(){}
-    Ball(Point position , float diameter): position(position), diameter(diameter), startingPosition(position) {}
+    Ball(Point position, float diameter): position(position), diameter(diameter), startingPosition(position) {}
 
     Point getPosition() const
     {
@@ -145,14 +152,6 @@ public:
     float getDiameter() const
     {
         return diameter;
-    }
-
-    void hit(Hit& h)
-    {
-        float x = h.force * (h.p2.x - h.p1.x);
-        float y = h.force * (h.p2.y - h.p1.y);
-
-        position = Point(x + position.x, y + position.y);
     }
 
     friend ostream& operator <<(ostream& os, const Ball& b);
@@ -263,14 +262,21 @@ public:
     }
 
     void hit(Hit& h)
-    {
+    { 
+        // позицията от удара
         float new_x = ball.getPosition().x + h.force * (h.p2.x - h.p1.x);
         float new_y = ball.getPosition().y + h.force * (h.p2.y - h.p1.y);
 
-        Point p(new_x, new_y);
         Point last_p(h.p2);
+        Point p(new_x, new_y);
+
+        // променена маса, за да не се правят проверки за топката, а да се сравнява винаги с радиус 0 
         Rectangle r(points[0], getWidth() - ball.getDiameter(), getHeight() - ball.getDiameter());
+
+        // права на удара
         Line l(last_p, p);
+
+        // проверява дали е вкарана топката в някоя от дупките
         for(int i = 0; i < 4; i++)
         {
             if(l.containsPoint(r.points[i]))
@@ -279,25 +285,27 @@ public:
                 return;
             }
         }
+
+        // стените на масата
         Line lines[4] = {Line(r.points[0], r.points[1]), Line(r.points[0], r.points[4]), Line(r.points[1], r.points[3]), Line(r.points[4], r.points[3])}; 
 
         Point intersection;
         while(!r.contains(p))
         {
-            // try to find intersecton with all sides and 
             float x = 0, y = 0;
 
+            // проверяваме всяка страна дали е ударена от топката
             for(int i = 0; i < 4; i++)
             {
                 if(Line::intersect(last_p, p, lines[i].p1, lines[i].p2, x, y))
                 {
-                    intersection = Point(-x, -y);
-                    cout << intersection << endl;
-
+                    // като намерим удар намираме симетричната права и отклоняваме посоката на топката
                     l = Line::findSymmetricalLine(Line(intersection, p), lines[i]);
                     break;
                 }
             }
+
+            // проверява дали е вкарана топката в някоя от дупките
             for(int i = 0; i < 4; i++)
             {
                 if(l.containsPoint(r.points[i]))
@@ -306,10 +314,12 @@ public:
                     return;
                 }
             }
+            // променяме новите точки на удара
             Point last_p(intersection);
             p = (l.p2);
-            cout << "\t\t\t\t" << p << endl;
         }
+
+        // задаваме новата позиция на топката
         ball.setPosition(p);
     }
 
@@ -480,8 +490,6 @@ void printMainMenu()
     cout << "1. Initialize\n2. Change\n3. Info\n4. Hit\n5. Exit\n";
 }
 
-// sled kato izleze gledash simetralnoto
-// za po-golqmi topcheta namalqsh poleto s radiusa che da e tochka
 int main(int argc, char const *argv[])
 {
     bool running = true;
